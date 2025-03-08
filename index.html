@@ -1,0 +1,64 @@
+<html>
+  <head>
+    <script src="./main.js" defer></script>
+    <style>
+      html {
+        background: black;
+        color: white;
+      }
+      button {
+        width: 60px;
+        height: 60px;
+      }
+      button:disabled {
+        background: rgb(139, 139, 217);
+        color: white;
+      }
+      #sudoku-table {
+        border-collapse: collapse;
+        margin: auto;
+      }
+      #sudoku-table * > button {
+        font-size: 1.5em;
+        font-weight: bold;
+      }
+      td:nth-child(3n) {
+        border-right: 5px solid black;
+      }
+      tr:nth-child(3n) td {
+        border-bottom: 5px solid black;
+      }
+      #numbers {
+        display: flex;
+        gap: 3px;
+        margin: auto;
+      }
+      #numbers > button {
+        border-radius: 10px;
+        height: 45px;
+        font-size: 1.5em;
+      }
+      #numbers > button.selected {
+        border-radius: 10px;
+        height: 45px;
+        background: gray;
+      }
+      #main {
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="main">
+      <table id="sudoku-table"></table>
+      <div id="numbers"></div>
+      <div id="debug-buttons">
+        <button id="fill-board">FILL BOARD</button>
+        <button id="solve-board">SOLVE BOARD</button>
+        <button id="clear-board">CLEAR BOARD</button>
+        <button id="randomize-board">RANDOMIZE BOARD</button>
+      </div>
+    </div>
+  </body>
+</html>
