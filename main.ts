@@ -1,6 +1,10 @@
 let selectedNumber = 0;
 
-const currentPuzzle = `---------
+const getBox = (x: number, y: number) => {
+  return Math.floor(x / 3) * 3 + Math.floor(y / 3);
+};
+
+let currentPuzzle = `---------
 ---------
 ---------
 ---------
@@ -16,8 +20,87 @@ const getCell = (x: number, y: number) => {
   return currentPuzzle[x][y];
 };
 
+const getSolutionCell = (x: number, y: number) => {
+  return exampleSolution[x][y];
+};
+
+const setSolutionCell = (x: number, y: number, c: string) => {
+  exampleSolution[x][y] = c;
+};
+
 const setCell = (x: number, y: number, c: string) => {
   currentPuzzle[x][y] = c;
+};
+
+const setCellManual = (x: number, y: number, c: string) => {
+  if (currentPuzzle[x][y] !== "-") {
+    return;
+  }
+  if (exampleSolution[x][y] === c) {
+    currentPuzzle[x][y] = c;
+  } else {
+    alert(`${c} does not go there! (expected ${exampleSolution[x][y]})`);
+  }
+  updateDocument();
+};
+
+const updateDocument = () => {
+  for (let x = 0; x < 9; x++) {
+    for (let y = 0; y < 9; y++) {
+      const cell = document.querySelector(
+        `[data-x="${x}"][data-y="${y}"] > button`
+      ) as HTMLElement;
+      if (currentPuzzle[x][y] === "-") {
+        cell.textContent = "";
+      } else {
+        cell.textContent = currentPuzzle[x][y];
+      }
+    }
+  }
+};
+
+const getPuzzleRowCells = (y: number) => {
+  const result: string[] = [];
+  for (let x = 0; x < 9; x++) {
+    result.push(currentPuzzle[x][y]);
+  }
+  return result;
+};
+
+const getPuzzleColCells = (x: number) => {
+  const result: string[] = [];
+  for (let y = 0; y < 9; y++) {
+    result.push(currentPuzzle[x][y]);
+  }
+  return result;
+};
+
+const getPuzzleBoxCells = (b: number) => {
+  const result: string[] = [];
+  for (let x = 0; x < 9; x++) {
+    for (let y = 0; y < 9; y++) {
+      if (getBox(x, y) === b) {
+        result.push(currentPuzzle[x][y]);
+      }
+    }
+  }
+  return result;
+};
+
+const getPuzzleBoxCellXYs = (b: number) => {
+  const result: number[][] = [];
+  for (let x = 0; x < 9; x++) {
+    for (let y = 0; y < 9; y++) {
+      if (getBox(x, y) === b) {
+        result.push([x, y]);
+      }
+    }
+  }
+  return result;
+};
+
+const puzzleCopy = () => {
+  return JSON.parse(JSON.stringify(currentPuzzle));
 };
 
 const puzzles = [
@@ -137,31 +220,123 @@ const puzzles = [
 --2---74-`,
 ];
 
-const examplePuzzle = puzzles[11].split("\n").map((r) => r.split(""));
+const solutions = [
+  `762349815
+354871962
+819256437
+497132658
+126598743
+583764291
+678915324
+931427586
+245683179`,
+  `247391568
+195768342
+863425197
+958216734
+312947685
+674853219
+781534926
+439672851
+526189473`,
+  `359412867
+461978532
+278653419
+596834271
+827196345
+143527986
+784265193
+615389724
+932741658`,
+  `312497586
+958126437
+674583912
+247931865
+195678243
+863245791
+781354629
+439762158
+526819374`,
+  `649318527
+531726894
+827495163
+496571382
+753842916
+218963475
+962154738
+185637249
+374289651`,
+  `489672531
+316549827
+752831649
+238157496
+547396218
+691284753
+873415962
+924763185
+165928374`,
+  `317458629
+452619387
+689273514
+923845761
+571396842
+846127953
+195784236
+238961475
+764532198`,
+  `496157382
+753284916
+218396475
+827549163
+531672894
+649831527
+962415738
+185763249
+374928651`,
+  `176485239
+938127465
+245963817
+612859743
+857341692
+493672581
+789236154
+324518976
+561794328`,
+  `398674152
+254381769
+716259834
+473928615
+961537248
+582416397
+829143576
+147865923
+635792481`,
+  `269345871
+518726349
+734891256
+971254683
+423687915
+685913427
+856479132
+347162598
+192538764`,
+  `391427586
+867915324
+524683179
+465871932
+276349865
+983256417
+158764293
+749132658
+632598741`,
+];
 
-const examplePuzzleHard = `--6-8-4--
---7--1-8-
----45----
-3--2-51--
-2----6-9-
-5------4-
---9--2-1-
-6----8--3
----------`
+const puzzleIndex = 0;
+
+const examplePuzzle = puzzles[puzzleIndex].split("\n").map((r) => r.split(""));
+const exampleSolution = solutions[puzzleIndex]
   .split("\n")
   .map((r) => r.split(""));
-
-const exampleSolution = [];
-
-const getBox = (x: number, y: number) => {
-  return Math.floor(x / 3) * 3 + Math.floor(y / 3);
-};
-
-const getCellButton = (x: number, y: number) => {
-  return document.querySelector(
-    `[data-x="${x}"][data-y="${y}"] > button`
-  ) as HTMLButtonElement;
-};
 
 const sudokuTable = document.getElementById("sudoku-table") as HTMLTableElement;
 for (let x = 0; x < 9; x++) {
@@ -177,14 +352,12 @@ for (let x = 0; x < 9; x++) {
     // for example puzzle
     if (examplePuzzle[x][y] !== "-") {
       btn.innerText = examplePuzzle[x][y];
-      btn.disabled = true;
+      currentPuzzle[x][y] = examplePuzzle[x][y];
     }
 
     tableRow.appendChild(tableCell);
     btn.addEventListener("click", () => {
-      if (selectedNumber) {
-        btn.innerText = `${selectedNumber}`;
-      }
+      setCellManual(x, y, `${selectedNumber}`);
     });
   }
   sudokuTable.appendChild(tableRow);
@@ -231,42 +404,41 @@ const getCellInfo = (x: number, y: number) => {
 };
 
 const checkCell = (x: number, y: number) => {
-  const button = getCellButton(x, y);
-  const buttonBox = getBox(x, y);
+  const cell = getCell(x, y);
+  const boxNumber = getBox(x, y);
   // has number?
-  if (!button.innerText) {
+  if (cell === "-") {
     return true;
   }
   // is number in row twice?
-  const rowItems = Array.from(document.querySelectorAll(`[data-y="${y}"]`)).map(
-    (ele) => ele.textContent || ""
-  );
+  const rowItems = getPuzzleRowCells(y);
   if (hasDuplicates(rowItems)) {
     return false;
   }
 
   // is number in column twice?
-  const colItems = Array.from(document.querySelectorAll(`[data-x="${x}"]`)).map(
-    (ele) => ele.textContent || ""
-  );
+  const colItems = getPuzzleColCells(x);
   if (hasDuplicates(colItems)) {
     return false;
   }
 
-  // is number in grid twice?
-  const gridItems = Array.from(
-    document.querySelectorAll(`[data-box="${buttonBox}"]`)
-  ).map((ele) => ele.textContent || "");
-  if (hasDuplicates(gridItems)) {
+  // is number in box twice?
+  const boxItems = getPuzzleBoxCells(boxNumber);
+  if (hasDuplicates(boxItems)) {
     return false;
   }
   return true;
 };
 
 const hasEmptyCells = () => {
-  return Array.from(document.querySelectorAll("td")).some(
-    (cell) => cell.textContent === ""
-  );
+  for (let x = 0; x < 9; x++) {
+    for (let y = 0; y < 9; y++) {
+      if (currentPuzzle[x][y] === "-") {
+        return true;
+      }
+    }
+  }
+  return false;
 };
 
 const numbersArray = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -334,26 +506,39 @@ const getPossibleSolutions = (x: number, y: number) => {
 
 const swapCells = (cellsA: number[][], cellsB: number[][]) => {
   const cellsANumbers = cellsA.map(([x, y]) => {
-    return getCellButton(x, y).textContent;
+    return getCell(x, y);
   });
   const cellsBNumbers = cellsB.map(([x, y]) => {
-    return getCellButton(x, y).textContent;
+    return getCell(x, y);
   });
   cellsA.forEach(([x, y], index) => {
-    getCellButton(x, y).textContent = cellsBNumbers[index];
+    setCell(x, y, cellsBNumbers[index]);
   });
   cellsB.forEach(([x, y], index) => {
-    getCellButton(x, y).textContent = cellsANumbers[index];
+    setCell(x, y, cellsANumbers[index]);
+  });
+  // swap solution cells
+  const solutionCellsANumbers = cellsA.map(([x, y]) => {
+    return getSolutionCell(x, y);
+  });
+  const solutionCellsBNumbers = cellsB.map(([x, y]) => {
+    return getSolutionCell(x, y);
+  });
+  cellsA.forEach(([x, y], index) => {
+    setSolutionCell(x, y, solutionCellsBNumbers[index]);
+  });
+  cellsB.forEach(([x, y], index) => {
+    setSolutionCell(x, y, solutionCellsANumbers[index]);
   });
 };
 
 let temp: number[][] = [];
-let oldState: string = ``;
+let oldPuzzle: string[][] | null = null;
 
 const isBoardSolved = () => {
   for (let x = 0; x < 9; x++) {
     for (let y = 0; y < 9; y++) {
-      if (getCellButton(x, y).textContent === "") {
+      if (getCell(x, y) === "-") {
         return false;
       }
     }
@@ -362,15 +547,19 @@ const isBoardSolved = () => {
 };
 
 const solveBoard = async () => {
+  await new Promise((res) => {
+    setTimeout(res, 0);
+  });
+  updateDocument();
   let anySuccesses = false;
   for (let x = 0; x < 9; x++) {
     for (let y = 0; y < 9; y++) {
-      if (getCellButton(x, y).textContent) {
+      if (getCell(x, y) === "-") {
         continue;
       }
       const possibleSolutions = getPossibleSolutions(x, y);
       if (possibleSolutions.size === 1) {
-        getCellButton(x, y).textContent = `${Array.from(possibleSolutions)[0]}`;
+        setCell(x, y, `${Array.from(possibleSolutions)[0]}`);
         anySuccesses = true;
         continue;
       }
@@ -403,10 +592,7 @@ const solveBoard = async () => {
           }
         );
         if (testBoxCells.length === 1) {
-          getCellButton(
-            testBoxCells[0][0],
-            testBoxCells[0][1]
-          ).textContent = `${test}`;
+          setCell(testBoxCells[0][0], testBoxCells[0][1], `${test}`);
           anySuccesses = true;
         }
         // check if number could be in more than one cell in row
@@ -416,10 +602,7 @@ const solveBoard = async () => {
           );
         });
         if (testRowCells.length === 1) {
-          getCellButton(
-            testRowCells[0][0],
-            testRowCells[0][1]
-          ).textContent = `${test}`;
+          setCell(testRowCells[0][0], testRowCells[0][1], `${test}`);
           anySuccesses = true;
         }
         // check if number could be in more than one cell in col
@@ -429,10 +612,7 @@ const solveBoard = async () => {
           );
         });
         if (testColCells.length === 1) {
-          getCellButton(
-            testColCells[0][0],
-            testColCells[0][1]
-          ).textContent = `${test}`;
+          setCell(testColCells[0][0], testColCells[0][1], `${test}`);
           anySuccesses = true;
         }
       }
@@ -453,11 +633,15 @@ const solveBoard = async () => {
 
       const possibleSolutions = Array.from(getPossibleSolutions(x, y));
       if (possibleSolutions.length > 0) {
-        oldState = oldState || sudokuTable.innerHTML;
-        getCellButton(x, y).textContent =
+        // oldState = oldState || sudokuTable.innerHTML;
+        oldPuzzle = oldPuzzle || puzzleCopy();
+        setCell(
+          x,
+          y,
           possibleSolutions[
             Math.floor(Math.random() * possibleSolutions.length)
-          ];
+          ]
+        );
         temp.push([x, y]);
         return solveBoard();
       }
@@ -469,31 +653,29 @@ const solveBoard = async () => {
   }
 
   if (!isBoardSolved()) {
-    await new Promise((res) => {
-      setTimeout(res, 0);
-    });
-    sudokuTable.innerHTML = oldState;
-    oldState = "";
+    // sudokuTable.innerHTML = oldState;
+    currentPuzzle = oldPuzzle as string[][];
+    // oldState = "";
+    oldPuzzle = null;
     temp = [];
     return solveBoard();
   }
+  updateDocument();
 };
 
 const clearBoard = () => {
-  document.querySelectorAll("td > button").forEach((ele) => {
-    ele.textContent = "";
-    ele.removeAttribute("disabled");
-  });
-};
-
-const fillBoard = () => {
-  for (let b = 0; b < 9; b = b + 4) {
-    let numbers = [...numbersArray];
-    getBoxCells(b).forEach(([x, y]) => {
-      const pickNumber = numbers.splice(Math.random() * numbers.length, 1);
-      getCellButton(x, y).textContent = `${pickNumber[0]}`;
-    });
-  }
+  currentPuzzle = `---------
+---------
+---------
+---------
+---------
+---------
+---------
+---------
+---------`
+    .split("\n")
+    .map((c) => c.split(""));
+  updateDocument();
 };
 
 const randomizeBoard = () => {
@@ -570,21 +752,24 @@ const randomizeBoard = () => {
       const remap = shuffleArray([1, 2, 3, 4, 5, 6, 7, 8, 9]);
       for (let x = 0; x < 9; x++) {
         for (let y = 0; y < 9; y++) {
-          const btn = getCellButton(x, y);
-          btn.textContent =
-            btn.textContent === ""
-              ? ""
-              : String(remap[Number(btn.textContent) - 1]);
+          const solutionCell = getSolutionCell(x, y);
+          const cell = getCell(x, y);
+          const newCellNumber =
+            cell === "-" ? "-" : String(remap[Number(cell) - 1]);
+          const newSolutionNumber = String(remap[Number(solutionCell) - 1]);
+          setCell(x, y, newCellNumber);
+          setSolutionCell(x, y, newSolutionNumber);
         }
       }
     }
   }
+  updateDocument();
 };
 
-const fillBoardButton = document.getElementById(
-  "fill-board"
-) as HTMLButtonElement;
-fillBoardButton.addEventListener("click", fillBoard);
+const logBoard = () => {
+  console.log(currentPuzzle.map((r) => r.join("")).join("\n"));
+};
+
 const solveBoardButton = document.getElementById(
   "solve-board"
 ) as HTMLButtonElement;
@@ -598,3 +783,8 @@ const randomizeBoardButton = document.getElementById(
   "randomize-board"
 ) as HTMLButtonElement;
 randomizeBoardButton.addEventListener("click", randomizeBoard);
+
+const logBoardButton = document.getElementById(
+  "log-board"
+) as HTMLButtonElement;
+logBoardButton.addEventListener("click", logBoard);
