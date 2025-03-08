@@ -1,4 +1,9 @@
+const params = new Proxy(new URLSearchParams(window.location.search), {
+  get: (searchParams, prop: string) => searchParams.get(prop),
+}) as unknown as { board: string };
+
 let selectedNumber = 0;
+let boardId = "";
 
 const getBox = (x: number, y: number) => {
   return Math.floor(x / 3) * 3 + Math.floor(y / 3);
@@ -331,7 +336,8 @@ const solutions = [
 632598741`,
 ];
 
-const puzzleIndex = 0;
+const puzzleIndex =
+  parseInt(params.board[0], 16) || Math.floor(Math.random() * 12);
 
 const examplePuzzle = puzzles[puzzleIndex].split("\n").map((r) => r.split(""));
 const exampleSolution = solutions[puzzleIndex]

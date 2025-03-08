@@ -8,7 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+const params = new Proxy(new URLSearchParams(window.location.search), {
+    get: (searchParams, prop) => searchParams.get(prop),
+});
 let selectedNumber = 0;
+let boardId = "";
 const getBox = (x, y) => {
     return Math.floor(x / 3) * 3 + Math.floor(y / 3);
 };
@@ -325,7 +329,7 @@ const solutions = [
 749132658
 632598741`,
 ];
-const puzzleIndex = 0;
+const puzzleIndex = parseInt(params.board[0], 16) || Math.floor(Math.random() * 12);
 const examplePuzzle = puzzles[puzzleIndex].split("\n").map((r) => r.split(""));
 const exampleSolution = solutions[puzzleIndex]
     .split("\n")
