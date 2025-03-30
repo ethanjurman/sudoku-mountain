@@ -39,6 +39,31 @@ function mergeStrings(str1: string, str2: string): string {
   return result;
 }
 
+function checkBoardSolutionState(
+  boardPuzzle: string,
+  solutionPuzzle: string
+): string | null {
+  if (
+    boardPuzzle.length > solutionPuzzle.length ||
+    solutionPuzzle.length > boardPuzzle.length
+  ) {
+    console.log("early return");
+    return null;
+  }
+  let result = "";
+  for (let i = 0; i < solutionPuzzle.length; i++) {
+    // if character is not the solution item AND isn't '-' then something went wrong and we should replace it with the solution item
+    if (boardPuzzle[i] === "-") {
+      result += "-";
+    }
+    if (boardPuzzle[i] !== "-" && boardPuzzle[i] !== solutionPuzzle[i]) {
+      result += solutionPuzzle;
+    }
+  }
+  console.log("result", result);
+  return result;
+}
+
 function stringToBoard(str: string): string[][] {
   return str.split("").reduce<string[][]>((acc, c, index) => {
     if (index % 9 === 0) {
@@ -47,6 +72,10 @@ function stringToBoard(str: string): string[][] {
     acc[Math.floor(index / 9)].push(c);
     return acc;
   }, []);
+}
+
+function boardToString(board: string[][]) {
+  return board?.map((r) => r?.join(""))?.join("") || "";
 }
 
 Devvit.configure({
@@ -216,6 +245,65 @@ Devvit.addMenuItem({
 });
 
 Devvit.addMenuItem({
+  label: "Skip puzzle",
+  location: "subreddit",
+  forUserType: "moderator",
+  onPress: async (_event, context) => {
+    const { redis } = context;
+
+    const posts = await context.reddit
+      .getHotPosts({
+        subredditName: context.subredditName,
+        limit: 10, // Adjust as needed
+      })
+      .all();
+
+    // Filter for stickied posts
+    const post = posts.filter((post) => post.stickied)[0];
+
+    const solution = await redis.get(`${post.id}:solution`);
+    if (solution) {
+      await redis.set(`${post.id}:puzzle`, solution);
+    }
+
+    makeNewBoard(context, null, redis, post.id);
+  },
+});
+
+Devvit.addMenuItem({
+  label: "Scramble puzzle (for testing)",
+  location: "subreddit",
+  forUserType: "moderator",
+  onPress: async (_event, context) => {
+    const { redis } = context;
+
+    const posts = await context.reddit
+      .getHotPosts({
+        subredditName: context.subredditName,
+        limit: 10, // Adjust as needed
+      })
+      .all();
+
+    // Filter for stickied posts
+    const post = posts.filter((post) => post.stickied)[0];
+
+    await redis.set(
+      `${post.id}:puzzle`,
+      [...Array(9)]
+        .fill(String(Math.floor(Math.random() * 1000000000)))
+        .join("")
+        .replace(/0/g, "-")
+        .replace(/1/g, "-")
+        .replace(/2/g, "-")
+        .replace(/3/g, "-")
+        .replace(/5/g, "-")
+        .replace(/7/g, "-")
+        .replace(/9/g, "-")
+    );
+  },
+});
+
+Devvit.addMenuItem({
   label: "Set to top height",
   location: "post",
   forUserType: "moderator",
@@ -269,23 +357,22 @@ Devvit.addMenuItem({
 
 const makeNewBoard = async (
   context: Context,
-  channel: UseChannelResult,
-  redis: RedisClient
+  channel: UseChannelResult | null,
+  redis: RedisClient,
+  postId: string
 ) => {
   const subreddit = await context.reddit.getCurrentSubreddit();
   const height = await redis.get(REDIS_HEIGHT_KEY);
   const latestPuzzle = await redis.get(REDIS_LATEST_PUZZLE_KEY);
-  const post = context.postId
-    ? await context.reddit.getPostById(context.postId)
-    : undefined;
-  if (latestPuzzle && latestPuzzle !== post?.url) {
+  const post = postId ? await context.reddit.getPostById(postId) : undefined;
+  if (latestPuzzle && latestPuzzle !== post?.url && channel) {
     // there exists a newer puzzler, send user to that
     channel.send({
       name: "new_board_link",
       value: latestPuzzle,
     });
   }
-  // if thihs is the latest puzzle, we need to make a new board
+  // if this is the latest puzzle, we need to make a new board
   if (subreddit && latestPuzzle === post?.url) {
     const newHeight = (Number(height) || 0) + 5;
     redis.set(REDIS_HEIGHT_KEY, String(newHeight));
@@ -296,13 +383,15 @@ const makeNewBoard = async (
       preview: <text>Climbing Mountain ...</text>,
     });
     redis.set(REDIS_LATEST_PUZZLE_KEY, post.url);
-    redis.del(`${context.postId}:state`);
-    redis.del(`${context.postId}:notes`);
+    redis.del(`${postId}:state`);
+    redis.del(`${postId}:notes`);
 
-    channel.send({
-      name: "new_board_link",
-      value: post.url,
-    });
+    if (channel) {
+      channel.send({
+        name: "new_board_link",
+        value: post.url,
+      });
+    }
     post.sticky(1);
   }
 };
@@ -347,6 +436,7 @@ Devvit.addCustomPostType({
       }
       // update board if didn't fetch latest
       const boardPuzzleRedisResult = await redis.get(`${postId}:puzzle`);
+      const puzzleString = boardToString(boardPuzzle);
       if (boardPuzzleRedisResult && puzzleString !== boardPuzzleRedisResult) {
         const mergedResult = mergeStrings(puzzleString, boardPuzzleRedisResult);
         setBoardPuzzle(stringToBoard(mergedResult));
@@ -393,16 +483,17 @@ Devvit.addCustomPostType({
     // BOARD PUZZLE LOGIC START
     const [isLoadingBoardPuzzle, setIsLoadingBoardPuzzle] = useState(false);
     const [boardPuzzle, setBoardPuzzle] = useState<string[][]>([]);
-    const puzzleString = boardPuzzle.map((r) => r.join("")).join("");
 
     const redisBoardPuzzleKey = `${postId}:puzzle`;
 
     const updateBoardPuzzle = (newBoardPuzzle: string[][]) => {
-      const newPuzzleString = newBoardPuzzle.map((r) => r.join("")).join("");
+      const puzzleString = boardToString(boardPuzzle);
+      const newPuzzleString = boardToString(newBoardPuzzle);
       const mergedPuzzleString = mergeStrings(puzzleString, newPuzzleString);
       const mergedBoard = stringToBoard(mergedPuzzleString);
 
       redis.set(redisBoardPuzzleKey, mergedPuzzleString);
+      // confirmed okay
       setBoardPuzzle(mergedBoard);
       channel.send({
         name: "puzzle_set",
@@ -411,7 +502,7 @@ Devvit.addCustomPostType({
         postId: postId,
       });
       if (getIsPuzzleComplete(mergedPuzzleString)) {
-        makeNewBoard(context, channel, redis);
+        makeNewBoard(context, channel, redis, context.postId!);
       }
     };
     // BOARD PUZZLE LOGIC END
@@ -423,10 +514,7 @@ Devvit.addCustomPostType({
     const redisBoardSolutionKey = `${postId}:solution`;
 
     const updateBoardSolution = (newBoardSolution: string[][]) => {
-      redis.set(
-        redisBoardSolutionKey,
-        `${newBoardSolution.map((r) => r.join("")).join("")}`
-      );
+      redis.set(redisBoardSolutionKey, `${boardToString(newBoardSolution)}`);
       setBoardSolution(newBoardSolution);
       channel.send({
         name: "solution_set",
@@ -444,10 +532,7 @@ Devvit.addCustomPostType({
     const redisBoardStateKey = `${postId}:state`;
 
     const updateBoardState = (newBoardState: string[][]) => {
-      redis.set(
-        redisBoardStateKey,
-        `${newBoardState.map((r) => r.join("")).join("")}`
-      );
+      redis.set(redisBoardStateKey, `${boardToString(newBoardState)}`);
       setBoardState(newBoardState);
       channel.send({
         name: "state_set",
@@ -503,11 +588,46 @@ Devvit.addCustomPostType({
           await redis.zAdd("health", { member: userId, score: 3 });
         }
 
-        const boardPuzzleRedis = (await redis.get(`${postId}:puzzle`)) || "";
+        let boardPuzzleRedis = (await redis.get(`${postId}:puzzle`)) || "";
         const boardSolutionRedis =
           (await redis.get(`${postId}:solution`)) || "";
         const boardStateRedis = (await redis.get(`${postId}:state`)) || "";
         const boardNotesRedis = (await redis.get(`${postId}:notes`)) || "";
+
+        // check that boardPuzzle matches expected state
+        if (boardSolutionRedis && boardPuzzleRedis && boardStateRedis) {
+          let needsToRewriteBoard = false;
+          let result = "";
+          // ensure they are all the same length
+          if (
+            boardSolutionRedis.length === boardPuzzleRedis.length &&
+            boardPuzzleRedis.length === boardStateRedis.length
+          ) {
+            for (let i = 0; i < boardPuzzleRedis.length; i++) {
+              // solution check
+              const isCellNumberCorrect =
+                boardPuzzleRedis[i] === "-"
+                  ? true
+                  : boardPuzzleRedis[i] === boardSolutionRedis[i];
+              // state check
+              const isCellStateCorrect =
+                boardStateRedis[i] === "1"
+                  ? boardPuzzleRedis[i] === boardSolutionRedis[i]
+                  : true;
+              if (isCellNumberCorrect && isCellStateCorrect) {
+                result += boardPuzzleRedis[i];
+              } else {
+                needsToRewriteBoard = true;
+                result += boardSolutionRedis[i];
+              }
+            }
+          }
+          if (needsToRewriteBoard && result.length > 0) {
+            await redis.set(`${postId}:puzzle`, result);
+            boardPuzzleRedis = result;
+          }
+        }
+
         return {
           postUrl,
           latestBoardRedis,
@@ -559,6 +679,7 @@ Devvit.addCustomPostType({
             setScore(Number(scoreRedis));
           }
           if (boardPuzzleRedis) {
+            const puzzleString = boardToString(boardPuzzle);
             const mergedPuzzleString = mergeStrings(
               puzzleString,
               boardPuzzleRedis
@@ -574,6 +695,7 @@ Devvit.addCustomPostType({
           if (boardNotesRedis) {
             setBoardNotes(JSON.parse(boardNotesRedis));
           }
+
           channel.subscribe();
         },
       }
@@ -596,7 +718,7 @@ Devvit.addCustomPostType({
         postId?: string;
         userId?: string;
       }) => {
-        if (data.session === mySession || data.postId !== postId) {
+        if (!data || data.session === mySession || data.postId !== postId) {
           // I am the one that sent the message or the post is not this post
           // do nothing
         } else {
@@ -610,8 +732,9 @@ Devvit.addCustomPostType({
             }
           }
           if (data.name === "puzzle_set") {
+            const puzzleString = boardToString(boardPuzzle);
             const newBoard: string[][] = JSON.parse(data.value);
-            const newBoardString = newBoard.map((r) => r.join("")).join("");
+            const newBoardString = boardToString(newBoard);
             const mergedPuzzleString = mergeStrings(
               puzzleString,
               newBoardString
@@ -969,7 +1092,7 @@ Devvit.addCustomPostType({
                                 handleCellClick(indexX, indexY);
                               }}
                             >
-                              {boardPuzzle[indexX][indexY] === "-" &&
+                              {boardPuzzle?.[indexX]?.[indexY] === "-" &&
                               boardNotes?.[indexX]?.[indexY].length ? (
                                 <vstack padding="none">
                                   {/* render NOTE items */}
@@ -1105,8 +1228,8 @@ Devvit.addCustomPostType({
                                       : "AlienBlue-500"
                                   }
                                 >
-                                  {boardPuzzle[indexX][indexY] !== "-"
-                                    ? boardPuzzle[indexX][indexY]
+                                  {boardPuzzle?.[indexX]?.[indexY] !== "-"
+                                    ? boardPuzzle?.[indexX]?.[indexY]
                                     : ""}
                                 </text>
                               )}
@@ -1165,7 +1288,7 @@ Devvit.addCustomPostType({
                     cornerRadius="small"
                     alignment="middle center"
                     backgroundColor={
-                      boardPuzzle.every((row) =>
+                      boardPuzzle?.every((row) =>
                         row.includes(String(index + 1))
                       )
                         ? "PureGray-500"
